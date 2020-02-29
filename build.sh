@@ -2,6 +2,8 @@
 
 set -e
 
+export RUSTFLAGS=""
+
 # Got working with wasm-pack 0.9.1
 wasm-pack build --target web
 
