@@ -97,6 +97,39 @@ enum Msg {
     Click,
 }
 
+fn circle(dir: i32) -> Html {
+    let cx = 20. * PLANAR_DIRECTION[dir as usize].0;
+    let cy = 20. * PLANAR_DIRECTION[dir as usize].1;
+
+    html! {
+        <circle cx={cx} cy={cy} r=5 />
+    }
+}
+
+fn straight(dir: i32) -> Html {
+    let start_x = 26. * PLANAR_DIRECTION[dir as usize].0;
+    let start_y = 26. * PLANAR_DIRECTION[dir as usize].1;
+    let end_x = -start_x;
+    let end_y = -start_y;
+
+    html! {
+        <line class="rails" x1={start_x} y1={start_y} x2={end_x} y2={end_y} />
+    }
+}
+
+fn bend(dir: i32) -> Html {
+    let x1 = 26. * PLANAR_DIRECTION[((dir + 5) % 6) as usize].0;
+    let y1 = 26. * PLANAR_DIRECTION[((dir + 5) % 6) as usize].1;
+    let x2 = 26. * PLANAR_DIRECTION[((dir + 1) % 6) as usize].0;
+    let y2 = 26. * PLANAR_DIRECTION[((dir + 1) % 6) as usize].1;
+
+    let d = format!("M{},{} A45,45 0 0 0 {},{} ", x1, y1, x2, y2);
+
+    html! {
+        <path class="rails" d={ d } />
+    }
+}
+
 impl App {
     fn hex(&self, q: i32, r: i32) -> Html {
         let edges = self.map.edges((q, r));
@@ -104,19 +137,33 @@ impl App {
         let x = q * 45;
         let y = q * 26 + r * 52;
 
-        fn circle(dir: i32) -> Html {
-            let cx = 20. * PLANAR_DIRECTION[dir as usize].0;
-            let cy = 20. * PLANAR_DIRECTION[dir as usize].1;
-
-            html! {
-                <circle data-dir={dir} cx={cx} cy={cy} r=5 />
-            }
-        }
-
         let dots = (0..6)
             .into_iter()
-            .filter(|dir| edges[*dir as usize].rail_connection)
+            .filter(|dir| {
+                (edges[*dir as usize].rail_connection
+                    && !edges[((dir + 2) % 6) as usize].rail_connection
+                    && !edges[((dir + 3) % 6) as usize].rail_connection
+                    && !edges[((dir + 4) % 6) as usize].rail_connection)
+            })
             .map(|dir| circle(dir))
+            .collect::<Html>();
+
+        let straights = (0..3)
+            .into_iter()
+            .filter(|dir| {
+                (edges[*dir as usize].rail_connection
+                    && edges[((dir + 3) % 6) as usize].rail_connection)
+            })
+            .map(|dir| straight(dir))
+            .collect::<Html>();
+
+        let bends = (0..6)
+            .into_iter()
+            .filter(|dir| {
+                (edges[((dir + 5) % 6) as usize].rail_connection
+                    && edges[((dir + 1) % 6) as usize].rail_connection)
+            })
+            .map(|dir| bend(dir))
             .collect::<Html>();
 
         html! {
@@ -126,6 +173,8 @@ impl App {
                     d="m-15,-26 l30,0 l15,26 l-15,26 l-30,0 l-15,-26 z"
                 />
                 { dots }
+                { straights }
+                { bends }
             </g>
         }
     }
@@ -137,8 +186,16 @@ impl Component for App {
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let mut map = Map::new();
-        map.cell_mut((0, 0)).edge[1].rail_connection = true;
         map.cell_mut((0, 1)).edge[1].rail_connection = true;
+        map.cell_mut((0, 0)).edge[2].rail_connection = true;
+        map.cell_mut((2, -1)).edge[0].rail_connection = true;
+        map.cell_mut((2, 0)).edge[1].rail_connection = true;
+        map.cell_mut((1, 1)).edge[0].rail_connection = true;
+        map.cell_mut((1, 1)).edge[2].rail_connection = true;
+
+        map.cell_mut((0, 0)).edge[1].rail_connection = true;
+        map.cell_mut((0, 2)).edge[1].rail_connection = true;
+        map.cell_mut((0, 2)).edge[2].rail_connection = true;
 
         App {
             clicked: false,
