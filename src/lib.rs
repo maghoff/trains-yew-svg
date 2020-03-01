@@ -1,6 +1,9 @@
 use wasm_bindgen::prelude::*;
 use yew::{html, Callback, ClickEvent, Component, ComponentLink, Html, ShouldRender};
 
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
 struct App {
     clicked: bool,
     onclick: Callback<ClickEvent>,
