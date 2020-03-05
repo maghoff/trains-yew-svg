@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
-use yew::{html, Callback, ClickEvent, Component, ComponentLink, Html, ShouldRender};
+use yew::services::ConsoleService;
+use yew::{html, Component, ComponentLink, Html, ShouldRender};
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -88,13 +89,15 @@ impl Map {
 }
 
 struct App {
-    clicked: bool,
-    onclick: Callback<ClickEvent>,
     map: Map,
+
+    link: ComponentLink<Self>,
+    console: ConsoleService,
+    value: i64,
 }
 
 enum Msg {
-    Click,
+    Increment,
 }
 
 fn circle(dir: i32) -> Html {
@@ -198,27 +201,25 @@ impl Component for App {
         map.cell_mut((0, 2)).edge[2].rail_connection = true;
 
         App {
-            clicked: false,
-            onclick: link.callback(|_| Msg::Click),
             map,
+            link,
+            console: ConsoleService::new(),
+            value: 0,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::Click => {
-                self.clicked = true;
-                true // Indicate that the Component should re-render
+            Msg::Increment => {
+                self.value = self.value + 1;
+                self.console.log("plus one");
+                true
             }
         }
     }
 
     fn view(&self) -> Html {
-        let button_text = if self.clicked {
-            "Clicked!"
-        } else {
-            "Click me!"
-        };
+        let button_text = self.value.to_string();
 
         use std::cmp::{max, min};
 
@@ -233,7 +234,8 @@ impl Component for App {
                 <svg viewBox="0 0 1000 1000" style="width: 1000px; height: 1000px">
                     { coords.into_iter().map(|(q, r)| self.hex(q, r)).collect::<Html>() }
                 </svg>
-                <button onclick=&self.onclick>{ button_text }</button>
+                <button onclick=self.link.callback(|_| Msg::Increment)>
+                        { button_text }</button>
             </>
         }
     }
