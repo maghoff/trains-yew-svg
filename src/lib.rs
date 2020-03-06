@@ -1,6 +1,9 @@
-use wasm_bindgen::prelude::*;
+#![recursion_limit = "256"]
+
+use wasm_bindgen::{prelude::*, JsCast};
+use web_sys::SvgsvgElement;
 use yew::services::ConsoleService;
-use yew::{html, Component, ComponentLink, Html, ShouldRender};
+use yew::{html, utils::document, Component, ComponentLink, Html, ShouldRender};
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -90,6 +93,7 @@ impl Map {
 
 struct App {
     map: Map,
+    highlight: Option<(i32, i32)>,
 
     link: ComponentLink<Self>,
     console: ConsoleService,
@@ -98,6 +102,8 @@ struct App {
 
 enum Msg {
     Increment,
+    MouseMove(f32, f32),
+    MouseLeave,
 }
 
 fn circle(dir: i32) -> Html {
@@ -133,8 +139,48 @@ fn bend(dir: i32) -> Html {
     }
 }
 
+fn cube_to_axial((x, _y, z): (f32, f32, f32)) -> (f32, f32) {
+    (x, z)
+}
+
+fn axial_to_cube((q, r): (f32, f32)) -> (f32, f32, f32) {
+    (q, -q - r, r)
+}
+
+fn cube_round((x, y, z): (f32, f32, f32)) -> (f32, f32, f32) {
+    let mut rx = x.round();
+    let mut ry = y.round();
+    let mut rz = z.round();
+
+    let x_diff = (rx - x).abs();
+    let y_diff = (ry - y).abs();
+    let z_diff = (rz - z).abs();
+
+    if x_diff > y_diff && x_diff > z_diff {
+        rx = -ry - rz;
+    } else if y_diff > z_diff {
+        ry = -rx - rz;
+    } else {
+        rz = -rx - ry;
+    }
+
+    (rx, ry, rz)
+}
+
+fn hex_round(hex: (f32, f32)) -> (f32, f32) {
+    cube_to_axial(cube_round(axial_to_cube(hex)))
+}
+
+fn pixel_to_flat_hex((x, y): (f32, f32)) -> (f32, f32) {
+    use std::f32;
+    let size = 30.;
+    let q = (2. / 3. * x as f32) / size;
+    let r = (-1. / 3. * x as f32 + (3. as f32).sqrt() / 3. * y as f32) / size;
+    hex_round((q, r))
+}
+
 impl App {
-    fn hex(&self, q: i32, r: i32) -> Html {
+    fn hex(&self, q: i32, r: i32, highlight: bool) -> Html {
         let edges = self.map.edges((q, r));
 
         let x = q * 45;
@@ -169,10 +215,12 @@ impl App {
             .map(|dir| bend(dir))
             .collect::<Html>();
 
+        let class = if highlight { "hex highlight" } else { "hex" };
+
         html! {
             <g transform={ format!("translate({},{})", 500 + x, 500 + y) }>
                 <path
-                    class="hex"
+                    class={ class }
                     d="m-15,-26 l30,0 l15,26 l-15,26 l-30,0 l-15,-26 z"
                 />
                 { dots }
@@ -202,6 +250,7 @@ impl Component for App {
 
         App {
             map,
+            highlight: None,
             link,
             console: ConsoleService::new(),
             value: 0,
@@ -213,6 +262,19 @@ impl Component for App {
             Msg::Increment => {
                 self.value = self.value + 1;
                 self.console.log("plus one");
+                true
+            }
+            Msg::MouseMove(x, y) => {
+                let (q, r) = pixel_to_flat_hex((x, y));
+                let (q, r) = (q as i32, r as i32);
+                self.highlight = Some((q, r));
+                self.console
+                    .log(&format!("mousemove({}, {}) => {}, {}", x, y, q, r));
+                true
+            }
+            Msg::MouseLeave => {
+                self.console.log("leave");
+                self.highlight = None;
                 true
             }
         }
@@ -231,11 +293,33 @@ impl Component for App {
 
         html! {
             <>
-                <svg viewBox="0 0 1000 1000" style="width: 1000px; height: 1000px">
-                    { coords.into_iter().map(|(q, r)| self.hex(q, r)).collect::<Html>() }
+                <svg
+                    viewBox="0 0 1000 1000"
+                    style="width: 1000px; height: 1000px"
+                    onmousemove=self.link.callback(|ev: yew::MouseEvent| {
+                        let svg: SvgsvgElement = document()
+                            .query_selector("svg")
+                            .unwrap()
+                            .expect("Should find the svg element")
+                            .dyn_into()
+                            .expect("Should have type svg");
+                        let pt = svg.create_svg_point();
+                        pt.set_x(ev.client_x() as _);
+                        pt.set_y(ev.client_y() as _);
+                        let transform_point = svg.get_screen_ctm().unwrap().inverse().unwrap();
+                        let tr = pt.matrix_transform(&transform_point);
+                        Msg::MouseMove(tr.x() - 500., tr.y() - 500.)
+                    })
+                    onmouseleave=self.link.callback(|_| Msg::MouseLeave)
+                >
+                    { coords.into_iter().map(|(q, r)| {
+                        let highlight = self.highlight
+                            .map(|(q1, r1)| q1 == q && r1 == r)
+                            .unwrap_or(false);
+                        self.hex(q, r, highlight)
+                    }).collect::<Html>() }
                 </svg>
-                <button onclick=self.link.callback(|_| Msg::Increment)>
-                        { button_text }</button>
+                <button onmousemove=self.link.callback(|_| Msg::Increment)>{ button_text }</button>
             </>
         }
     }

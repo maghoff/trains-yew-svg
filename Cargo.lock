@@ -375,6 +375,7 @@ name = "trains-yew-svg"
 version = "0.1.0"
 dependencies = [
  "wasm-bindgen 0.2.58 (registry+https://github.com/rust-lang/crates.io-index)",
+ "web-sys 0.3.35 (registry+https://github.com/rust-lang/crates.io-index)",
  "wee_alloc 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "yew 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
