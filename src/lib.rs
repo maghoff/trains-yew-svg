@@ -28,6 +28,7 @@ struct Cell {
     edge: [Edge; 3],
 }
 
+#[derive(Copy, Clone)]
 struct Map {
     cells: [[Cell; 7]; 7],
 }
@@ -89,21 +90,32 @@ impl Map {
                 }),
         ]
     }
+
+    fn maybe_edge_mut(&mut self, (q, r): (i32, i32), edge: usize) -> Option<&mut Edge> {
+        if edge < 3 {
+            if q >= -3 && q <= 3 && r >= -3 && r <= 3 {
+                Some(&mut self.cell_mut((q, r)).edge[edge])
+            } else {
+                None
+            }
+        } else {
+            self.maybe_edge_mut(plus((q, r), AXIAL_DIRECTION[edge]), edge - 3)
+        }
+    }
 }
 
 struct App {
     map: Map,
-    highlight: Option<(i32, i32)>,
+    highlight: Option<(i32, i32, i32)>,
 
     link: ComponentLink<Self>,
     console: ConsoleService,
-    value: i64,
 }
 
 enum Msg {
-    Increment,
     MouseMove(f32, f32),
     MouseLeave,
+    MouseClick(f32, f32),
 }
 
 fn circle(dir: i32) -> Html {
@@ -171,16 +183,17 @@ fn hex_round(hex: (f32, f32)) -> (f32, f32) {
     cube_to_axial(cube_round(axial_to_cube(hex)))
 }
 
-fn pixel_to_flat_hex((x, y): (f32, f32)) -> (f32, f32) {
+fn pixel_to_flat_hex((x, y): (f32, f32)) -> (i32, i32) {
     use std::f32;
     let size = 30.;
     let q = (2. / 3. * x as f32) / size;
     let r = (-1. / 3. * x as f32 + (3. as f32).sqrt() / 3. * y as f32) / size;
-    hex_round((q, r))
+    let (q, r) = hex_round((q, r));
+    (q as _, r as _)
 }
 
 impl App {
-    fn hex(&self, q: i32, r: i32, highlight: bool) -> Html {
+    fn hex(&self, q: i32, r: i32) -> Html {
         let edges = self.map.edges((q, r));
 
         let x = q * 45;
@@ -215,13 +228,57 @@ impl App {
             .map(|dir| bend(dir))
             .collect::<Html>();
 
-        let class = if highlight { "hex highlight" } else { "hex" };
+        let h = if let Some(highlight) = self.highlight {
+            let highlight2 = (
+                highlight.0 + AXIAL_DIRECTION[highlight.2 as usize].0,
+                highlight.1 + AXIAL_DIRECTION[highlight.2 as usize].1,
+                ((highlight.2 + 3) % 6) as _,
+            );
+
+            if q == highlight.0 && r == highlight.1 {
+                Some(highlight.2)
+            } else if q == highlight2.0 && r == highlight2.1 {
+                Some(highlight2.2)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         html! {
             <g transform={ format!("translate({},{})", 500 + x, 500 + y) }>
-                <path
-                    class={ class }
-                    d="m-15,-26 l30,0 l15,26 l-15,26 l-30,0 l-15,-26 z"
+                <polygon
+                    class="hex-background"
+                    points="-15,-26 15,-26 30,0 15,26 -15,26 -30,0"
+                />
+                <polygon
+                    class={ if Some(0) == h { "hex-edge highlight" } else { "hex-edge" } }
+                    points="-18,0 -30,0 -15,-26 -9,-15.6"
+                />
+                <polygon
+                    class={ if Some(1) == h { "hex-edge highlight" } else { "hex-edge" } }
+                    points="-9,-15.6 -15,-26 15,-26 9,-15.6"
+                />
+                <polygon
+                    class={ if Some(2) == h { "hex-edge highlight" } else { "hex-edge" } }
+                    points="9,-15.6 15,-26 30,0 18,0"
+                />
+                <polygon
+                    class={ if Some(3) == h { "hex-edge highlight" } else { "hex-edge" } }
+                    points="18,0 30,0 15,26 9,15.6"
+                />
+                <polygon
+                    class={ if Some(4) == h { "hex-edge highlight" } else { "hex-edge" } }
+                    points="9,15.6 15,26 -15,26 -9,15.6"
+                />
+                <polygon
+                    class={ if Some(5) == h { "hex-edge highlight" } else { "hex-edge" } }
+                    points="-9,15.6 -15,26 -30,0 -18,0"
+                />
+                <polygon
+                    class="hex-foreground"
+                    points="-15,-26 15,-26 30,0 15,26 -15,26 -30,0"
                 />
                 { dots }
                 { straights }
@@ -236,53 +293,59 @@ impl Component for App {
     type Properties = ();
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let mut map = Map::new();
-        map.cell_mut((0, 1)).edge[1].rail_connection = true;
-        map.cell_mut((0, 0)).edge[2].rail_connection = true;
-        map.cell_mut((2, -1)).edge[0].rail_connection = true;
-        map.cell_mut((2, 0)).edge[1].rail_connection = true;
-        map.cell_mut((1, 1)).edge[0].rail_connection = true;
-        map.cell_mut((1, 1)).edge[2].rail_connection = true;
-
-        map.cell_mut((0, 0)).edge[1].rail_connection = true;
-        map.cell_mut((0, 2)).edge[1].rail_connection = true;
-        map.cell_mut((0, 2)).edge[2].rail_connection = true;
-
         App {
-            map,
+            map: Map::new(),
             highlight: None,
             link,
             console: ConsoleService::new(),
-            value: 0,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
-        match msg {
-            Msg::Increment => {
-                self.value = self.value + 1;
-                self.console.log("plus one");
-                true
+        fn edge_from_coord(x: f32, y: f32) -> Option<(i32, i32, i32)> {
+            let (q, r) = pixel_to_flat_hex((x, y));
+
+            let rx = x - (q * 45) as f32;
+            let ry = y - (q * 26 + r * 52) as f32;
+
+            let a = (PLANAR_DIRECTION[0].0 * rx + PLANAR_DIRECTION[0].1 * ry) / 26.;
+            let b = (PLANAR_DIRECTION[1].0 * rx + PLANAR_DIRECTION[1].1 * ry) / 26.;
+            let c = (PLANAR_DIRECTION[2].0 * rx + PLANAR_DIRECTION[2].1 * ry) / 26.;
+            let edge_proximities = [a, b, c, -a, -b, -c];
+
+            let (index, _) = edge_proximities
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                .unwrap();
+
+            if edge_proximities[index] > 0.6 {
+                Some((q, r, index as _))
+            } else {
+                None
             }
+        }
+
+        match msg {
             Msg::MouseMove(x, y) => {
-                let (q, r) = pixel_to_flat_hex((x, y));
-                let (q, r) = (q as i32, r as i32);
-                self.highlight = Some((q, r));
-                self.console
-                    .log(&format!("mousemove({}, {}) => {}, {}", x, y, q, r));
+                self.highlight = edge_from_coord(x, y);
                 true
             }
             Msg::MouseLeave => {
-                self.console.log("leave");
                 self.highlight = None;
                 true
             }
+            Msg::MouseClick(x, y) => edge_from_coord(x, y)
+                .and_then(|(q, r, edge)| self.map.maybe_edge_mut((q, r), edge as _))
+                .map(|edge| {
+                    edge.rail_connection = !edge.rail_connection;
+                    true
+                })
+                .unwrap_or(false),
         }
     }
 
     fn view(&self) -> Html {
-        let button_text = self.value.to_string();
-
         use std::cmp::{max, min};
 
         let coords = (-3..4).into_iter().flat_map(|q| {
@@ -291,35 +354,40 @@ impl Component for App {
                 .map(move |r| (q, r))
         });
 
+        fn coord_from_ev(ev: &yew::MouseEvent) -> (f32, f32) {
+            let svg: SvgsvgElement = document()
+                .query_selector("svg")
+                .unwrap()
+                .expect("Should find the svg element")
+                .dyn_into()
+                .expect("Should have type svg");
+            let pt = svg.create_svg_point();
+            pt.set_x(ev.client_x() as _);
+            pt.set_y(ev.client_y() as _);
+            let transform_point = svg.get_screen_ctm().unwrap().inverse().unwrap();
+            let tr = pt.matrix_transform(&transform_point);
+            (tr.x(), tr.y())
+        }
+
         html! {
             <>
                 <svg
                     viewBox="0 0 1000 1000"
                     style="width: 1000px; height: 1000px"
                     onmousemove=self.link.callback(|ev: yew::MouseEvent| {
-                        let svg: SvgsvgElement = document()
-                            .query_selector("svg")
-                            .unwrap()
-                            .expect("Should find the svg element")
-                            .dyn_into()
-                            .expect("Should have type svg");
-                        let pt = svg.create_svg_point();
-                        pt.set_x(ev.client_x() as _);
-                        pt.set_y(ev.client_y() as _);
-                        let transform_point = svg.get_screen_ctm().unwrap().inverse().unwrap();
-                        let tr = pt.matrix_transform(&transform_point);
-                        Msg::MouseMove(tr.x() - 500., tr.y() - 500.)
+                        let coord = coord_from_ev(&ev);
+                        Msg::MouseMove(coord.0 - 500., coord.1 - 500.)
                     })
                     onmouseleave=self.link.callback(|_| Msg::MouseLeave)
+                    onclick=self.link.callback(|ev: yew::MouseEvent| {
+                        let coord = coord_from_ev(&ev);
+                        Msg::MouseClick(coord.0 - 500., coord.1 - 500.)
+                    })
                 >
                     { coords.into_iter().map(|(q, r)| {
-                        let highlight = self.highlight
-                            .map(|(q1, r1)| q1 == q && r1 == r)
-                            .unwrap_or(false);
-                        self.hex(q, r, highlight)
+                        self.hex(q, r)
                     }).collect::<Html>() }
                 </svg>
-                <button onmousemove=self.link.callback(|_| Msg::Increment)>{ button_text }</button>
             </>
         }
     }
