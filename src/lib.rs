@@ -118,27 +118,31 @@ enum Msg {
     MouseClick(f32, f32),
 }
 
-fn circle(dir: i32) -> Html {
+fn circle(dir: i32, ghost: bool) -> Html {
     let cx = 20. * PLANAR_DIRECTION[dir as usize].0;
     let cy = 20. * PLANAR_DIRECTION[dir as usize].1;
 
+    let class = if ghost { "rails ghost" } else { "rails" };
+
     html! {
-        <circle cx={cx} cy={cy} r=5 />
+        <circle class={class} cx={cx} cy={cy} r=5 />
     }
 }
 
-fn straight(dir: i32) -> Html {
+fn straight(dir: i32, ghost: bool) -> Html {
     let start_x = 26. * PLANAR_DIRECTION[dir as usize].0;
     let start_y = 26. * PLANAR_DIRECTION[dir as usize].1;
     let end_x = -start_x;
     let end_y = -start_y;
 
+    let class = if ghost { "rails ghost" } else { "rails" };
+
     html! {
-        <line class="rails" x1={start_x} y1={start_y} x2={end_x} y2={end_y} />
+        <line class={class} x1={start_x} y1={start_y} x2={end_x} y2={end_y} />
     }
 }
 
-fn bend(dir: i32) -> Html {
+fn bend(dir: i32, ghost: bool) -> Html {
     let x1 = 26. * PLANAR_DIRECTION[((dir + 5) % 6) as usize].0;
     let y1 = 26. * PLANAR_DIRECTION[((dir + 5) % 6) as usize].1;
     let x2 = 26. * PLANAR_DIRECTION[((dir + 1) % 6) as usize].0;
@@ -146,8 +150,10 @@ fn bend(dir: i32) -> Html {
 
     let d = format!("M{},{} A45,45 0 0 0 {},{} ", x1, y1, x2, y2);
 
+    let class = if ghost { "rails ghost" } else { "rails" };
+
     html! {
-        <path class="rails" d={ d } />
+        <path class={class} d={ d } />
     }
 }
 
@@ -199,35 +205,6 @@ impl App {
         let x = q * 45;
         let y = q * 26 + r * 52;
 
-        let dots = (0..6)
-            .into_iter()
-            .filter(|dir| {
-                (edges[*dir as usize].rail_connection
-                    && !edges[((dir + 2) % 6) as usize].rail_connection
-                    && !edges[((dir + 3) % 6) as usize].rail_connection
-                    && !edges[((dir + 4) % 6) as usize].rail_connection)
-            })
-            .map(|dir| circle(dir))
-            .collect::<Html>();
-
-        let straights = (0..3)
-            .into_iter()
-            .filter(|dir| {
-                (edges[*dir as usize].rail_connection
-                    && edges[((dir + 3) % 6) as usize].rail_connection)
-            })
-            .map(|dir| straight(dir))
-            .collect::<Html>();
-
-        let bends = (0..6)
-            .into_iter()
-            .filter(|dir| {
-                (edges[((dir + 5) % 6) as usize].rail_connection
-                    && edges[((dir + 1) % 6) as usize].rail_connection)
-            })
-            .map(|dir| bend(dir))
-            .collect::<Html>();
-
         let h = if let Some(highlight) = self.highlight {
             let highlight2 = (
                 highlight.0 + AXIAL_DIRECTION[highlight.2 as usize].0,
@@ -245,6 +222,58 @@ impl App {
         } else {
             None
         };
+
+        let mut connections = [0; 6];
+        for i in 0..6 {
+            connections[i] = if edges[i].rail_connection { 1 } else { 0 };
+        }
+
+        if let Some(h) = h {
+            connections[h as usize] |= 2;
+        }
+
+        let dots = (0..6)
+            .into_iter()
+            .filter(|dir| {
+                ((connections[*dir as usize] != 0)
+                    && (connections[((dir + 2) % 6) as usize] == 0)
+                    && (connections[((dir + 3) % 6) as usize] == 0)
+                    && (connections[((dir + 4) % 6) as usize] == 0))
+            })
+            .map(|dir| (dir, connections[dir as usize] & 1 == 0))
+            .map(|(dir, ghost)| circle(dir, ghost))
+            .collect::<Html>();
+
+        let straights = (0..3)
+            .into_iter()
+            .filter(|dir| {
+                (connections[*dir as usize] != 0) && (connections[((dir + 3) % 6) as usize] != 0)
+            })
+            .map(|dir| {
+                (
+                    dir,
+                    (connections[dir as usize] & connections[((dir + 3) % 6) as usize]) & 1 == 0,
+                )
+            })
+            .map(|(dir, ghost)| straight(dir, ghost))
+            .collect::<Html>();
+
+        let bends = (0..6)
+            .into_iter()
+            .filter(|dir| {
+                (connections[((dir + 5) % 6) as usize] != 0)
+                    && (connections[((dir + 1) % 6) as usize] != 0)
+            })
+            .map(|dir| {
+                (
+                    dir,
+                    (connections[((dir + 5) % 6) as usize] & connections[((dir + 1) % 6) as usize])
+                        & 1
+                        == 0,
+                )
+            })
+            .map(|(dir, ghost)| bend(dir, ghost))
+            .collect::<Html>();
 
         html! {
             <g transform={ format!("translate({},{})", 500 + x, 500 + y) }>
