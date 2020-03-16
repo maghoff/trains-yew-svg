@@ -118,27 +118,44 @@ enum Msg {
     MouseClick(f32, f32),
 }
 
-fn circle(dir: i32, ghost: bool) -> Html {
-    let cx = 20. * PLANAR_DIRECTION[dir as usize].0;
-    let cy = 20. * PLANAR_DIRECTION[dir as usize].1;
-
-    let class = if ghost { "rails ghost" } else { "rails" };
-
-    html! {
-        <circle class={class} cx={cx} cy={cy} r=5 />
-    }
+fn stub(dir: i32, ghost: bool) -> Html {
+    straight_len(dir, 10., ghost)
 }
 
 fn straight(dir: i32, ghost: bool) -> Html {
+    straight_len(dir, 52., ghost)
+}
+
+fn straight_len(dir: i32, len: f32, ghost: bool) -> Html {
     let start_x = 26. * PLANAR_DIRECTION[dir as usize].0;
     let start_y = 26. * PLANAR_DIRECTION[dir as usize].1;
-    let end_x = -start_x;
-    let end_y = -start_y;
+    let end_x = (26. - len) * PLANAR_DIRECTION[dir as usize].0;
+    let end_y = (26. - len) * PLANAR_DIRECTION[dir as usize].1;
+
+    let dx = -PLANAR_DIRECTION[dir as usize].1;
+    let dy = PLANAR_DIRECTION[dir as usize].0;
+
+    let dist = 10.;
 
     let class = if ghost { "rails ghost" } else { "rails" };
 
     html! {
-        <line class={class} x1={start_x} y1={start_y} x2={end_x} y2={end_y} />
+        <>
+            <line
+                class={class}
+                x1={start_x - dist * dx}
+                y1={start_y - dist * dy}
+                x2={end_x - dist * dx}
+                y2={end_y - dist * dy}
+            />
+            <line
+                class={class}
+                x1={start_x + dist * dx}
+                y1={start_y + dist * dy}
+                x2={end_x + dist * dx}
+                y2={end_y + dist * dy}
+            />
+        </>
     }
 }
 
@@ -148,7 +165,28 @@ fn bend(dir: i32, ghost: bool) -> Html {
     let x2 = 26. * PLANAR_DIRECTION[((dir + 1) % 6) as usize].0;
     let y2 = 26. * PLANAR_DIRECTION[((dir + 1) % 6) as usize].1;
 
-    let d = format!("M{},{} A45,45 0 0 0 {},{} ", x1, y1, x2, y2);
+    let dx1 = -PLANAR_DIRECTION[((dir + 5) % 6) as usize].1;
+    let dy1 = PLANAR_DIRECTION[((dir + 5) % 6) as usize].0;
+    let dx2 = -PLANAR_DIRECTION[((dir + 1) % 6) as usize].1;
+    let dy2 = PLANAR_DIRECTION[((dir + 1) % 6) as usize].0;
+
+    let dist = 10.;
+
+    let d = format!(
+        "M{},{} A{},{} 0 0 0 {},{} M{},{} A{},{} 0 0 0 {},{}",
+        x1 - dist * dx1,
+        y1 - dist * dy1,
+        45. + dist,
+        45. + dist,
+        x2 + dist * dx2,
+        y2 + dist * dy2,
+        x1 + dist * dx1,
+        y1 + dist * dy1,
+        45. - dist,
+        45. - dist,
+        x2 - dist * dx2,
+        y2 - dist * dy2,
+    );
 
     let class = if ghost { "rails ghost" } else { "rails" };
 
@@ -241,7 +279,7 @@ impl App {
                     && (connections[((dir + 4) % 6) as usize] == 0))
             })
             .map(|dir| (dir, connections[dir as usize] & 1 == 0))
-            .map(|(dir, ghost)| circle(dir, ghost))
+            .map(|(dir, ghost)| stub(dir, ghost))
             .collect::<Html>();
 
         let straights = (0..3)
