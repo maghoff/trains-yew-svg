@@ -30,7 +30,7 @@ struct Cell {
 
 #[derive(Copy, Clone)]
 struct Map {
-    cells: [[Cell; 7]; 7],
+    cells: [[Cell; 9]; 9],
 }
 
 fn plus(a: (i32, i32), b: (i32, i32)) -> (i32, i32) {
@@ -44,18 +44,18 @@ impl Map {
                 edge: [Edge {
                     rail_connection: false,
                 }; 3],
-            }; 7]; 7],
+            }; 9]; 9],
         }
     }
 
     fn cell(&self, (q, r): (i32, i32)) -> &Cell {
-        assert!(q >= -3);
-        assert!(r >= -3);
-        &self.cells[(q + 3) as usize][(r + 3) as usize]
+        assert!(q >= -4);
+        assert!(r >= -4);
+        &self.cells[(q + 4) as usize][(r + 4) as usize]
     }
 
     fn maybe_cell(&self, (q, r): (i32, i32)) -> Option<&Cell> {
-        if q >= -3 && q <= 3 && r >= -3 && r <= 3 {
+        if q >= -4 && q <= 4 && r >= -4 && r <= 4 {
             Some(self.cell((q, r)))
         } else {
             None
@@ -63,9 +63,9 @@ impl Map {
     }
 
     fn cell_mut(&mut self, (q, r): (i32, i32)) -> &mut Cell {
-        assert!(q >= -3);
-        assert!(r >= -3);
-        &mut self.cells[(q + 3) as usize][(r + 3) as usize]
+        assert!(q >= -4);
+        assert!(r >= -4);
+        &mut self.cells[(q + 4) as usize][(r + 4) as usize]
     }
 
     fn edges(&self, c: (i32, i32)) -> [Edge; 6] {
@@ -93,7 +93,7 @@ impl Map {
 
     fn maybe_edge_mut(&mut self, (q, r): (i32, i32), edge: usize) -> Option<&mut Edge> {
         if edge < 3 {
-            if q >= -3 && q <= 3 && r >= -3 && r <= 3 {
+            if q >= -4 && q <= 4 && r >= -4 && r <= 4 {
                 Some(&mut self.cell_mut((q, r)).edge[edge])
             } else {
                 None
