@@ -314,7 +314,7 @@ impl App {
             .collect::<Html>();
 
         html! {
-            <g transform={ format!("translate({},{})", 500 + x, 500 + y) }>
+            <g transform={ format!("translate({},{})", x, y) }>
                 <polygon
                     class="hex-background"
                     points="-15,-26 15,-26 30,0 15,26 -15,26 -30,0"
@@ -439,16 +439,16 @@ impl Component for App {
         html! {
             <>
                 <svg
-                    viewBox="0 0 1000 1000"
-                    style="width: 1000px; height: 1000px"
+                    viewBox="-165 -185 330 370"
+                    style="width: 330px; height: 370px"
                     onmousemove=self.link.callback(|ev: yew::MouseEvent| {
                         let coord = coord_from_ev(&ev);
-                        Msg::MouseMove(coord.0 - 500., coord.1 - 500.)
+                        Msg::MouseMove(coord.0, coord.1)
                     })
                     onmouseleave=self.link.callback(|_| Msg::MouseLeave)
                     onclick=self.link.callback(|ev: yew::MouseEvent| {
                         let coord = coord_from_ev(&ev);
-                        Msg::MouseClick(coord.0 - 500., coord.1 - 500.)
+                        Msg::MouseClick(coord.0, coord.1)
                     })
                 >
                     { coords.into_iter().map(|(q, r)| {
