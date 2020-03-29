@@ -273,10 +273,10 @@ impl App {
         let dots = (0..6)
             .into_iter()
             .filter(|dir| {
-                ((connections[*dir as usize] != 0)
+                (connections[*dir as usize] != 0)
                     && (connections[((dir + 2) % 6) as usize] == 0)
                     && (connections[((dir + 3) % 6) as usize] == 0)
-                    && (connections[((dir + 4) % 6) as usize] == 0))
+                    && (connections[((dir + 4) % 6) as usize] == 0)
             })
             .map(|dir| (dir, connections[dir as usize] & 1 == 0))
             .map(|(dir, ghost)| stub(dir, ghost))
