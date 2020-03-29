@@ -462,7 +462,17 @@ impl Component for App {
 
 #[wasm_bindgen]
 pub fn run_app() -> Result<(), JsValue> {
-    yew::start_app::<App>();
+    yew::initialize();
+    let app = yew::App::<App>::new();
+    app.mount(
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("yew")
+            .unwrap(),
+    );
+    yew::run_loop();
 
     Ok(())
 }
