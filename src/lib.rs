@@ -439,6 +439,7 @@ impl Component for App {
         html! {
             <>
                 <svg
+                    class="rail-canvas"
                     viewBox="-165 -185 330 370"
                     style="width: 330px; height: 370px"
                     onmousemove=self.link.callback(|ev: yew::MouseEvent| {
